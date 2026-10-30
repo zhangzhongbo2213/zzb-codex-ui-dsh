@@ -113,7 +113,7 @@ python3 scripts/install.py --update
 
 `--update` 更新程序和技能，备份被替换文件，并保留现有 `config.toml`、`local-settings.json` 和会话。自定义安装位置需要在更新时再次传入相同的 `--prefix` / `--state-dir`。`--skip-runtime` 只安装 UI 和配置，供开发或已有运行包的场景使用。
 
-工作台默认使用炭灰底色、柔白正文和低饱和 ANSI 基础色；原版对话渲染保持不变。新安装的原生代码高亮主题为 `base16-ocean-dark`，可在中央对话输入 `/theme` 选择。已有安装的 `--update` 保留个人配置，如需该代码主题，请自行选择 `/theme` 或设置 `[tui]` 下的 `theme = "base16-ocean-dark"`。终端基础色影响使用默认颜色或 ANSI 基础色的内容，不会覆盖原版显式指定的 RGB 色彩。
+工作台默认使用炭灰底色、柔白正文和低饱和 ANSI 基础色；原版对话渲染保持不变。新安装的原生代码高亮主题为 `base16-ocean-dark`，可在中央对话输入 `/theme` 选择。已有安装的 `--update` 保留个人配置，如需该代码主题，请自行选择 `/theme` 或设置 `[tui]` 下的 `theme = "base16-ocean-dark"`。终端基础色影响使用默认颜色或 ANSI 基础色的内容，不会覆盖原版显式指定的 RGB 色彩。 启动器会移除父进程继承的 `NO_COLOR`，避免从自动化工具或旧 tmux 环境启动时整段对话变成灰白。更新启动器后，已有对话需在中央输入 `/quit`，再从历史列表恢复，才会重新读取环境；侧栏 `q` 暂离不会重启进程。
 
 UI 可用 `ZZB_CODEX_HOME`、`ZZB_CODEX_PREFIX`、`ZZB_CODEX_LAUNCHER`、`ZZB_TMUX` 覆盖路径。详细操作见 [UI 说明](ui/README.md)。账号可用模型取决于新机器上登录的账号；默认模型和推理强度保存在 `config/base.toml`，可自行修改。
 

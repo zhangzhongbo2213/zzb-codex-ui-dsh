@@ -50,7 +50,8 @@ class SetupTests(unittest.TestCase):
     def test_parent_identity_and_proxy_are_isolated(self):
         env = launcher.isolated_environment({"CODEX_HOME": "/parent", "CODEX_FOO": "x",
                     "OPENAI_API_KEY": "parent", "CHATGPT_TEST": "parent", "_CODEX_TEST": "parent",
-                    "HTTP_PROXY": "http://old", "PATH": "/usr/bin", "EDITOR": "vim"}, Path("/isolated"), "http://localhost:17890")
+                    "HTTP_PROXY": "http://old", "NO_COLOR": "1", "PATH": "/usr/bin", "EDITOR": "vim"}, Path("/isolated"), "http://localhost:17890")
+        self.assertNotIn("NO_COLOR", env)
         self.assertNotIn("OPENAI_API_KEY", env)
         self.assertNotIn("CODEX_FOO", env)
         self.assertNotIn("CHATGPT_TEST", env)

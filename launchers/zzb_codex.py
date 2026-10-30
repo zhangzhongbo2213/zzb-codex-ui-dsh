@@ -25,6 +25,8 @@ def protected_settings(state):
 def isolated_environment(source, state, proxy_url):
     env = {k: v for k, v in source.items()
            if not k.startswith(("CODEX_", "OPENAI_", "CHATGPT_", "_CODEX_"))}
+    # Keep the native TUI colourful even when launched by a NO_COLOR tool shell.
+    env.pop("NO_COLOR", None)
     env.update(CODEX_HOME=str(state), CODEX_SQLITE_HOME=str(state / "db"), TMPDIR=str(state / "tmp") + "/")
     for suffix, name in (("CONFIG", "config"), ("DATA", "data"), ("STATE", "state"),
                          ("CACHE", "cache"), ("RUNTIME", "runtime")):
