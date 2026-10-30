@@ -953,6 +953,7 @@ _HELP_LINES: tuple[tuple[str, str], ...] = (
     ("text", "  鼠标双击文件/目录    复制所选项的绝对路径"),
     ("text", "  y / 文件上 Enter    复制所选项的绝对路径"),
     ("text", "  p / 单击文件         打开只读预览；双击仍复制路径"),
+    ("text", "  o                    在 Finder 定位；Linux 打开所在目录"),
     ("text", "  .                    显示 / 隐藏以 . 开头的文件和目录"),
     ("text", "  选中文件时，右侧显示该文件所在目录的历史会话。"),
     ("blank", ""),
@@ -1422,6 +1423,27 @@ class BrowserApp:
         except Exception as exc:
             self._set_status("暂离失败：" + sanitize_text(exc), "error")
 
+    def _reveal_selected(self) -> None:
+        self._pending_preview = None
+        path = os.path.abspath(self.tree.selected_node.path)
+        try:
+            if not os.path.lexists(path):
+                raise ValueError("所选项已不存在，请按 r 刷新")
+            if sys.platform == "darwin":
+                command = ["/usr/bin/open", "-R", path]
+                message = "已在 Finder 中定位："
+            elif sys.platform.startswith("linux") and (os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")) and shutil.which("xdg-open"):
+                command = [shutil.which("xdg-open"), os.path.dirname(path)]
+                message = "已打开所在目录："
+            else:
+                raise ValueError("当前环境没有可用的图形文件管理器")
+            result = subprocess.run(command, capture_output=True, text=True, timeout=5, check=False)
+            if result.returncode:
+                raise ValueError(sanitize_text(result.stderr, 300) or "文件管理器启动失败")
+            self._set_status(message + sanitize_text(path), "good")
+        except (OSError, ValueError, subprocess.SubprocessError) as exc:
+            self._set_status("打开目录失败：" + sanitize_text(str(exc)), "error")
+
     def _preview_selected(self) -> None:
         self._pending_preview = None
         node = self.tree.selected_node
@@ -1467,6 +1489,9 @@ class BrowserApp:
 
     def _handle_key(self, key: int) -> None:
         self._pending_preview = None
+        if key == ord("o") and self.focus == LEFT:
+            self._reveal_selected()
+            return
         if key == ord("p") and self.focus == LEFT:
             self._preview_selected()
             return
@@ -2026,7 +2051,7 @@ class BrowserApp:
             return
         essentials = "F6 对话  ·  ? 帮助  ·  q 暂离" if self.workspace else "r 刷新  ·  ? 帮助  ·  q 退出"
         if self.focus == LEFT:
-            hints = "Tab 焦点  ·  ↑↓/jk 移动  ·  h 折叠/父级  ·  l 展开  ·  Enter 展开/复制  ·  p 预览  ·  y 复制  ·  . 隐藏"
+            hints = "Tab 焦点  ·  ↑↓/jk 移动  ·  h 折叠/父级  ·  l 展开  ·  Enter 展开/复制  ·  p 预览  ·  o 定位  ·  y 复制  ·  . 隐藏"
         else:
             hints = "Tab 焦点  ·  ↑↓/jk 移动  ·  Enter 恢复会话  ·  n 新会话  ·  y 复制路径"
         essential_width = display_width(essentials)
@@ -2130,7 +2155,7 @@ class BrowserApp:
             text = self.status_message or self.tree.selected_node.path
             status_style = (self.status_kind if self.status_kind in self.theme._attrs else "muted") if self.status_message else "path"
             _clip_add(self.stdscr, h - 2, 0, text, self.theme.attr(status_style), w)
-            hint = "jk hl · p预览 · y复制 · ?" if self.role == "directories" else "jk Enter · ? · q"
+            hint = "jk hl · p预览 · o定位 · y复制 · ?" if self.role == "directories" else "jk Enter · ? · q"
             _clip_add(self.stdscr, h - 1, 0, hint, self.theme.attr("muted"), w)
         try:
             self.stdscr.noutrefresh()

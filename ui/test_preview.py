@@ -8,6 +8,22 @@ import app
 import preview
 
 class PreviewTests(unittest.TestCase):
+    def test_finder_reveal_files_directories_and_cancel_preview(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            file = Path(tmp)/"文件 ; $(echo nope).txt"; file.write_text('test')
+            browser = app.BrowserApp(mock.Mock(), tmp, tmp)
+            with mock.patch.object(app.sys, 'platform', 'darwin'), mock.patch.object(app.subprocess, 'run', return_value=mock.Mock(returncode=0)) as run:
+                for path in (tmp, str(file)):
+                    browser.tree.select_path(path)
+                    browser._pending_preview = (0, path)
+                    browser._handle_key(ord('o'))
+                    self.assertIsNone(browser._pending_preview)
+                    self.assertEqual(run.call_args.args[0], ['/usr/bin/open', '-R', path])
+                    self.assertNotIn('shell', run.call_args.kwargs)
+                file.unlink(); run.reset_mock()
+                browser._handle_key(ord('o')); run.assert_not_called()
+                self.assertEqual(browser.status_kind, 'error')
+
     def test_bounded_text_and_controls(self):
         with tempfile.TemporaryDirectory() as tmp:
             p = Path(tmp)/"text"
