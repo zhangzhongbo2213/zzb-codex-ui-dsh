@@ -512,6 +512,19 @@ class DirectoryTreeTests(unittest.TestCase):
         browser.workspace.set_directory.assert_called_once_with(visible_parent)
         load.assert_called_once_with(visible_parent)
 
+    def test_parent_root_and_filesystem_boundary(self) -> None:
+        tree = app.DirectoryTree(os.path.join(self.root, "alpha"), show_hidden=True)
+        self.assertTrue(tree.parent_root())
+        self.assertEqual(tree.root_path, self.root)
+        self.assertTrue(tree.show_hidden)
+        self.assertEqual(tree.selected_path, self.root)
+        tree.root.expanded = False
+        self.assertEqual(tree.collapse_or_parent(), "root-parent")
+        tree = app.DirectoryTree(os.path.abspath(os.sep))
+        self.assertFalse(tree.parent_root())
+        tree.root.expanded = False
+        self.assertEqual(tree.collapse_or_parent(), "noop")
+
     def test_expand_collapse_parent_and_hidden_toggle(self) -> None:
         tree = app.DirectoryTree(self.root)
         self.assertTrue(tree.select_index(1))

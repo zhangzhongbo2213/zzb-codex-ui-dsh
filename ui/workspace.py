@@ -204,6 +204,12 @@ class Workspace:
     def get_directory(self) -> str | None:
         return _decode_directory(self._get(_DIRECTORY))
 
+    def get_tree_root(self) -> str | None:
+        return _decode_directory(self._get("@zzb-tree-root"))
+
+    def set_tree_root(self, path: str) -> None:
+        self._set("@zzb-tree-root", _encode_directory(path))
+
     def focus_role(self, role: str) -> None:
         option = {"directories": _NAV, "sessions": _RIGHT, "chat": _CHAT}[role]
         pane = self._get(option)
@@ -232,6 +238,8 @@ class Workspace:
             self._set(_NAV, nav)
         self._configure()
         self._set("@zzb-state-dir", os.path.realpath(os.fspath(state_dir)))
+        if self.get_tree_root() is None:
+            self.set_tree_root(start_dir)
         if self.get_directory() is None:
             self.set_directory(start_dir)
         main, nav = self._get(_MAIN), self._get(_NAV)

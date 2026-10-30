@@ -568,7 +568,14 @@ class DirectoryTree:
         if node.parent is not None:
             self.selected_path = node.parent.path
             return "parent"
-        return "noop"
+        return "root-parent" if self.parent_root() else "noop"
+
+    def parent_root(self) -> bool:
+        parent = os.path.dirname(self.root_path)
+        if parent == self.root_path:
+            return False
+        self.__init__(parent, show_hidden=self.show_hidden)
+        return True
 
     def set_show_hidden(self, show_hidden: bool) -> None:
         show_hidden = bool(show_hidden)
@@ -947,6 +954,7 @@ _HELP_LINES: tuple[tuple[str, str], ...] = (
     ("text", "  g / G                跳到第一项 / 最后一项"),
     ("text", "  PgUp / PgDn          翻页滚动"),
     ("text", "  ← 或 h               折叠所选；若已折叠则回到父目录"),
+    ("text", "  Backspace            将文件树根目录切换到上一级"),
     ("text", "  → 或 l               展开目录；若已展开则进入首个子项"),
     ("text", "  Enter（文件夹上）    展开 / 折叠"),
     ("text", "  鼠标单击             选中文件；文件夹同时展开 / 折叠"),
@@ -1057,12 +1065,18 @@ class BrowserApp:
         self._pending_preview = None
         self._mouse_mask = self._build_mouse_mask()
         if self.workspace is not None and self.role != "combined":
+            if self.role == "directories":
+                root = self.workspace.get_tree_root()
+                if root and os.path.isdir(root):
+                    self.tree = DirectoryTree(root)
             saved = self.workspace.get_directory()
             if saved and os.path.isdir(saved):
                 if self.role == "sessions":
                     self.tree = DirectoryTree(saved)
                 else:
                     self._reveal_directory(saved)
+            if self.role == "directories":
+                self.workspace.set_tree_root(self.tree.root_path)
         self._load_sessions(preserve=False)
 
     # -- setup and terminal handoff -------------------------------------
@@ -1544,9 +1558,19 @@ class BrowserApp:
             elif key == ord("G") or key == key_end:
                 self.tree.move_to_last()
                 self._sync_directory()
+            elif key in (8, 127, getattr(curses, "KEY_BACKSPACE", 263)):
+                if self.tree.parent_root():
+                    self.left_scroll = 0
+                    if self.workspace is not None:
+                        self.workspace.set_tree_root(self.tree.root_path)
+                    self._sync_directory()
             elif key in (ord("h"), key_left):
                 before = self.tree.selected_path
-                self.tree.collapse_or_parent()
+                result = self.tree.collapse_or_parent()
+                if result == "root-parent":
+                    self.left_scroll = 0
+                    if self.workspace is not None:
+                        self.workspace.set_tree_root(self.tree.root_path)
                 if self.tree.selected_path != before:
                     self._sync_directory()
             elif key in (ord("l"), key_right):
@@ -2155,7 +2179,7 @@ class BrowserApp:
             text = self.status_message or self.tree.selected_node.path
             status_style = (self.status_kind if self.status_kind in self.theme._attrs else "muted") if self.status_message else "path"
             _clip_add(self.stdscr, h - 2, 0, text, self.theme.attr(status_style), w)
-            hint = "jk hl · p预览 · o定位 · y复制 · ?" if self.role == "directories" else "jk Enter · ? · q"
+            hint = "jk hl · ⌫上层 · p预览 · o定位 · y复制 · ?" if self.role == "directories" else "jk Enter · ? · q"
             _clip_add(self.stdscr, h - 1, 0, hint, self.theme.attr("muted"), w)
         try:
             self.stdscr.noutrefresh()
