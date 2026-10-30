@@ -4,6 +4,8 @@
 
 支持 macOS Apple 芯片 / Intel，以及 Linux ARM64 / x86-64。安装器根据机器选择锁定的 **Codex 0.166.0 完整运行包**，校验 SHA-256 后安装，包含 code-mode host、exec server 和运行资源。下载地址与校验值见 [runtime-lock.json](config/runtime-lock.json)。
 
+点击左侧文件可预览：文本在终端浮窗中滚动查看，图片使用系统预览窗口；选中文件按 `p` 也可打开。双击继续复制路径，关闭预览不会中断后台对话。详见 [文件预览](ui/README.md#文件预览)。
+
 ## 新机器安装
 
 需要 Python **3.12+**、tmux 和 Git。安装命令不需要 sudo，也不会修改全局 `codex`、系统代理或 shell 配置。

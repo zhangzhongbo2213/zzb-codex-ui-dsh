@@ -106,7 +106,7 @@ class SetupTests(unittest.TestCase):
             self.assertEqual(stat.S_IMODE(state.stat().st_mode), 0o700)
             ui = prefix / "bin/zzb-codex-ui"
             self.assertEqual({p.name for p in (prefix / "share/zzb-codex-ui").iterdir()},
-                             {"app.py", "workspace.py", "README.md"})
+                             {"app.py", "workspace.py", "preview.py", "README.md"})
             help_result = subprocess.run([sys.executable, str(ui), "--help"], capture_output=True, text=True, env=env)
             self.assertEqual(help_result.returncode, 0, help_result.stderr)
             listing = subprocess.run([sys.executable, str(ui), "--list-json", tmp], capture_output=True, text=True, env=env)

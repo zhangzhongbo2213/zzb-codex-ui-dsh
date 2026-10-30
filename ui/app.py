@@ -2,7 +2,7 @@
 """zzb-codex-ui: a tiny, dependency-free terminal browser for zzb-codex sessions.
 
 The program only reads thread metadata from the independent zzb-codex SQLite
-database.  It never reads credentials, rollout contents, or message bodies.
+database.  File preview reads only the explicitly selected file; session browsing does not read rollout bodies.
 Interactive work is delegated to the existing ``zzb-codex`` launcher.
 """
 
@@ -16,6 +16,7 @@ import locale
 import math
 import os
 import shutil
+import shlex
 import sqlite3
 import stat
 import subprocess
@@ -950,6 +951,7 @@ _HELP_LINES: tuple[tuple[str, str], ...] = (
     ("text", "  鼠标单击             选中文件；文件夹同时展开 / 折叠"),
     ("text", "  鼠标双击文件/目录    复制所选项的绝对路径"),
     ("text", "  y / 文件上 Enter    复制所选项的绝对路径"),
+    ("text", "  p / 单击文件         打开只读预览；双击仍复制路径"),
     ("text", "  .                    显示 / 隐藏以 . 开头的文件和目录"),
     ("text", "  选中文件时，右侧显示该文件所在目录的历史会话。"),
     ("blank", ""),
@@ -1050,6 +1052,7 @@ class BrowserApp:
         self._suspended = False
         self._layout = ViewLayout()
         self._last_dir_click: tuple[float, str] | None = None
+        self._pending_preview = None
         self._mouse_mask = self._build_mouse_mask()
         if self.workspace is not None and self.role != "combined":
             saved = self.workspace.get_directory()
@@ -1418,7 +1421,54 @@ class BrowserApp:
         except Exception as exc:
             self._set_status("暂离失败：" + sanitize_text(exc), "error")
 
+    def _preview_selected(self) -> None:
+        self._pending_preview = None
+        node = self.tree.selected_node
+        if node.is_directory:
+            self._set_status("请选择文件后按 p 预览", "info")
+            return
+        from preview import is_image, open_image
+        try:
+            if is_image(node.path):
+                open_image(node.path)
+                self._set_status("已打开图片预览窗口", "info")
+                return
+            command = [sys.executable, os.path.join(os.path.dirname(__file__), "preview.py"), node.path]
+            if self.workspace:
+                from workspace import TMUX
+                clients = self.workspace.run("list-clients", "-t", self.workspace.session_name,
+                                             "-F", "#{client_name}").splitlines()
+                if not clients:
+                    raise ValueError("当前工作台没有连接的终端，无法显示浮窗")
+                command = [TMUX, "-L", self.workspace.socket_name, "display-popup", "-E",
+                           "-c", clients[0], "-w", "80%", "-h", "80%",
+                           "-s", "fg=colour252,bg=colour234", "-S", "fg=colour109",
+                           shlex.join(command)]
+            self._suspend_terminal()
+            try:
+                result = subprocess.run(command, check=False)
+                if result.returncode:
+                    self._set_status("预览窗口未能打开", "error")
+            finally:
+                self._resume_terminal()
+        except (OSError, ValueError, subprocess.SubprocessError) as exc:
+            self._set_status("预览失败：" + sanitize_text(str(exc)), "error")
+
+    def _poll_preview(self) -> None:
+        pending = self._pending_preview
+        if pending is None:
+            return
+        deadline, path = pending
+        if self.focus != LEFT or self.tree.selected_path != path or self.help_visible:
+            self._pending_preview = None
+        elif time.monotonic() >= deadline:
+            self._preview_selected()
+
     def _handle_key(self, key: int) -> None:
+        self._pending_preview = None
+        if key == ord("p") and self.focus == LEFT:
+            self._preview_selected()
+            return
         key_enter = getattr(curses, "KEY_ENTER", 343)
         key_ppage = getattr(curses, "KEY_PPAGE", 339)
         key_npage = getattr(curses, "KEY_NPAGE", 338)
@@ -1543,6 +1593,7 @@ class BrowserApp:
         return bits
 
     def _handle_mouse(self) -> None:
+        self._pending_preview = None
         try:
             _, mouse_x, mouse_y, _, button_state = curses.getmouse()
         except curses.error:
@@ -1587,6 +1638,9 @@ class BrowserApp:
                 self._copy_selected_directory()
             else:
                 self._last_dir_click = (now, path)
+                if not self.tree.selected_node.is_directory:
+                    self._pending_preview = (now + DOUBLE_CLICK_SECONDS, path)
+                    return
                 result = self.tree.toggle_selected()
                 if result == "error" and self.tree.selected_node.scan_error:
                     self._set_status("目录读取失败：" + self.tree.selected_node.scan_error, "error")
@@ -1971,7 +2025,7 @@ class BrowserApp:
             return
         essentials = "F6 对话  ·  ? 帮助  ·  q 暂离" if self.workspace else "r 刷新  ·  ? 帮助  ·  q 退出"
         if self.focus == LEFT:
-            hints = "Tab 焦点  ·  ↑↓/jk 移动  ·  h 折叠/父级  ·  l 展开  ·  Enter 展开/复制  ·  y 复制  ·  . 隐藏"
+            hints = "Tab 焦点  ·  ↑↓/jk 移动  ·  h 折叠/父级  ·  l 展开  ·  Enter 展开/复制  ·  p 预览  ·  y 复制  ·  . 隐藏"
         else:
             hints = "Tab 焦点  ·  ↑↓/jk 移动  ·  Enter 恢复会话  ·  n 新会话  ·  y 复制路径"
         essential_width = display_width(essentials)
@@ -2075,7 +2129,7 @@ class BrowserApp:
             text = self.status_message or self.tree.selected_node.path
             status_style = (self.status_kind if self.status_kind in self.theme._attrs else "muted") if self.status_message else "path"
             _clip_add(self.stdscr, h - 2, 0, text, self.theme.attr(status_style), w)
-            hint = "jk hl · y复制 · ?" if self.role == "directories" else "jk Enter · ? · q"
+            hint = "jk hl · p预览 · y复制 · ?" if self.role == "directories" else "jk Enter · ? · q"
             _clip_add(self.stdscr, h - 1, 0, hint, self.theme.attr("muted"), w)
         try:
             self.stdscr.noutrefresh()
@@ -2126,11 +2180,11 @@ class BrowserApp:
 
     def run(self) -> None:
         self._setup()
-        if self.workspace is not None:
-            self.stdscr.timeout(500)
+        self.stdscr.timeout(100)
         last_refresh = time.monotonic()
         try:
             while self.running:
+                self._poll_preview()
                 self._poll_directory()
                 if self.workspace is not None and time.monotonic() - last_refresh >= 3:
                     self._load_sessions(preserve=True)
@@ -2143,6 +2197,7 @@ class BrowserApp:
                 if key == -1:
                     continue
                 if key == getattr(curses, "KEY_RESIZE", 410):
+                    self._pending_preview = None
                     self._layout = ViewLayout()
                     continue
                 if key == getattr(curses, "KEY_MOUSE", 409):

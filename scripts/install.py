@@ -138,7 +138,7 @@ def install(args):
         path.chmod(0o700 if executable else 0o600)
 
     sources = (
-        ("ui", prefix / "share/zzb-codex-ui", ("app.py", "workspace.py", "README.md")),
+        ("ui", prefix / "share/zzb-codex-ui", ("app.py", "workspace.py", "preview.py", "README.md")),
         ("launchers", prefix / "share/zzb-codex-setup/launchers", ("zzb_codex.py",)),
         ("vendor/dsh-bridge", prefix / "share/zzb-codex-setup/dsh-bridge", ("dsh_mcp.py", "dsh_runner.py", "SOURCE.md")),
         ("skills/dsh-delegate", state / "skills/dsh-delegate", ("SKILL.md", "agents/openai.yaml", "references/task-templates.md")),
