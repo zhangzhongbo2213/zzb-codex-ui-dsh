@@ -84,6 +84,18 @@ zzb-codex mcp add dsh -- python3 "$HOME/local/share/zzb-codex-setup/dsh-bridge/d
 
 在 `~/.zzb-codex/config.toml` 的 `[mcp_servers.dsh]` 中设置 `tool_timeout_sec = 660`；确保 `dsh` 和 `node` 在启动 zzb-codex 时的 PATH 中。新会话可用 `$dsh-delegate` 调用技能。首次安装的 `--with-dsh` 会自动生成这些设置。
 
+### 技能存在，但提示“没有注册 dsh MCP”
+
+技能文件和 MCP 服务注册是两件事。`zzb-codex` 使用独立的 `~/.zzb-codex/config.toml`，不能只在普通 Codex 的 `~/.codex/config.toml` 中注册 dsh。项目配置可能让主目录中的会话恰好能使用 dsh，而换到另一个目录就找不到。应在实际工作的项目目录检查：
+
+```sh
+zzb-codex mcp list
+```
+
+如果没有 dsh，首次安装使用上面的 `--with-dsh`；已有安装使用上面的 `zzb-codex mcp add dsh ...` 注册，并检查独立配置文件中的启动命令、PATH 和超时。不要将普通 Codex 的整个配置文件覆盖到独立目录。
+
+配置完成后，在报错的中央对话中用 `/quit` 结束原进程，再从右侧历史列表重新打开该会话。输入 `/mcp` 应显示 `dsh: connected (3 tools)`；`/mcp verbose` 可查看 `dsh_run`、`dsh_resume`、`dsh_bridge_info`。导航区按 `q` 仅暂离，后台进程继续运行，不等于重新加载 MCP。官方操作说明见 [MCP 文档](https://developers.openai.com/codex/mcp)。
+
 ## 自定义位置和更新
 
 ```sh
