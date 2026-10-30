@@ -120,6 +120,21 @@ class ThreadStoreTests(unittest.TestCase):
         self.db = make_threads_db(self.state, self.rows)
         self.store = app.ThreadStore.from_state_dir(self.state)
 
+    def test_rename_uses_name_and_refreshes_without_reopening_store(self) -> None:
+        with closing(sqlite3.connect(self.db)) as db, db:
+            db.execute("ALTER TABLE threads ADD COLUMN name TEXT")
+            db.execute("UPDATE threads SET name=? WHERE id='old'", ("美术资产",))
+            db.execute("UPDATE threads SET name=? WHERE id='new'", ("   ",))
+        sessions = {s.id: s for s in self.store.load_sessions(self.project).sessions}
+        self.assertEqual(sessions['old'].title, "美术资产")
+        self.assertEqual(sessions['new'].title, app.sanitize_text(self.rows[1][2]))
+        with closing(sqlite3.connect(self.db)) as db, db:
+            db.execute("UPDATE threads SET name=? WHERE id='old'", ("新的名字\x07",))
+        self.assertEqual({s.id: s.title for s in self.store.load_sessions(self.project).sessions}['old'], "新的名字")
+        with closing(sqlite3.connect(self.db)) as db, db:
+            db.execute("UPDATE threads SET name=NULL WHERE id='old'")
+        self.assertEqual({s.id: s.title for s in self.store.load_sessions(self.project).sessions}['old'], "旧会话")
+
     def test_exact_cwd_filter_archive_filter_and_recent_sort(self) -> None:
         query = self.store.load_sessions(self.project)
         self.assertIsNone(query.error)

@@ -274,7 +274,7 @@ class ThreadStore:
             )
             connection.row_factory = sqlite3.Row
             available = {row[1] for row in connection.execute("PRAGMA table_info(threads)")}
-            extras = [name for name in ("preview", "first_user_message", "model", "tokens_used", "reasoning_effort") if name in available]
+            extras = [name for name in ("name", "preview", "first_user_message", "model", "tokens_used", "reasoning_effort") if name in available]
             columns = ", ".join(["id", "cwd", "title", "updated_at", "archived", *extras])
             rows = connection.execute(
                 "SELECT " + columns + " FROM threads WHERE COALESCE(archived, 0) = 0"
@@ -308,7 +308,8 @@ class ThreadStore:
                 raw_updated = row["updated_at"]
                 if not isinstance(raw_updated, (str, int, float, bool, type(None))):
                     raw_updated = str(raw_updated)
-                title = sanitize_text(row["title"], limit=500) or "（无标题）"
+                renamed = sanitize_text(row["name"], limit=500) if "name" in row.keys() else ""
+                title = renamed or sanitize_text(row["title"], limit=500) or "（无标题）"
                 sessions.append(
                     SessionInfo(
                         id=session_id,
