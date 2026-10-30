@@ -1,0 +1,11 @@
+{
+  "mixed-port": 17890,
+  "bind-address": "127.0.0.1",
+  "allow-lan": false,
+  "external-controller": "127.0.0.1:17891",
+  "secret": "REPLACE_WITH_LOCAL_RANDOM_SECRET",
+  "mode": "rule",
+  "tun": {"enable": false},
+  "proxies": [],
+  "rules": ["MATCH,🇯🇵 日本S02 | IEPL"]
+}
