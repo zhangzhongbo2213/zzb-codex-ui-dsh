@@ -73,6 +73,30 @@ class WorkspaceTest(unittest.TestCase):
         self.ws.run("send-keys", "-l", "-t", pane, text)
         self.ws.run("send-keys", "-t", pane, "Enter")
 
+    def test_late_session_id_reuses_original_new_conversation(self):
+        from unittest import mock
+        original = self.ws.open([sys.executable, "-c", CHAT], self.start)
+        self._wait_for(original, "PID:")
+        pid = self._pane_pid(original)
+        other = self.ws.open([sys.executable, "-c", CHAT], self.start, "other")
+        identifier = "11111111-1111-4111-8111-111111111111"
+        with mock.patch.object(self.ws, "_native_owner", return_value=(self.session, original)):
+            restored = self.ws.open([sys.executable, "-c", CHAT], self.start, "resume:" + identifier)
+        self.assertEqual(restored, original)
+        self.assertEqual(pid, self._pane_pid(restored))
+        self._send(restored, "after-switch")
+        self._wait_for(restored, "ECHO:after-switch")
+        self.assertEqual(len(self._panes()), 5)  # 3 initial panes + two conversations
+
+    def test_other_workspace_owner_prevents_duplicate_start(self):
+        from unittest import mock
+        before = self._panes()
+        with mock.patch.object(self.ws, "_native_owner", return_value=("another-workspace", "%999")):
+            with self.assertRaisesRegex(RuntimeError, "已在工作台"):
+                self.ws.open([sys.executable, "-c", CHAT], self.start,
+                             "resume:11111111-1111-4111-8111-111111111111")
+        self.assertEqual(before, self._panes())
+
     def test_01_ensure_has_nav_and_chat_in_main_window(self):
         main = self._option("@zzb-main-window")
         nav = self._option("@zzb-nav-pane")

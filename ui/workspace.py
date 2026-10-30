@@ -6,6 +6,7 @@ import base64
 import binascii
 import hashlib
 import os
+import re
 import shlex
 import shutil
 import subprocess
@@ -230,6 +231,7 @@ class Workspace:
             self._set(_MAIN, main)
             self._set(_NAV, nav)
         self._configure()
+        self._set("@zzb-state-dir", os.path.realpath(os.fspath(state_dir)))
         if self.get_directory() is None:
             self.set_directory(start_dir)
         main, nav = self._get(_MAIN), self._get(_NAV)
@@ -274,6 +276,48 @@ class Workspace:
         self.run("select-pane", "-t", nav)
         return self
 
+    def _native_owner(self, key: str) -> tuple[str, str] | None:
+        """Resolve picker/new sessions by open writer-lock paths, never rollout contents."""
+        if not key.startswith("resume:"):
+            return None
+        identifier = key[7:]
+        if not re.fullmatch(r"[0-9a-fA-F-]{36}", identifier):
+            return None
+        state = self._get("@zzb-state-dir") or os.path.expanduser("~/.zzb-codex")
+        expected = os.path.realpath(os.path.join(state, "thread-writer-locks", identifier + ".lock"))
+        rows = self.run("list-panes", "-a", "-F",
+                        "#{session_name}\t#{pane_id}\t#{pane_pid}\t#{pane_dead}\t#{pane_current_command}")
+        for row in rows.splitlines():
+            session, pane, pid, dead, command = row.split("\t", 4)
+            if dead == "1" or not pid.isdigit() or "codex" not in command.lower():
+                continue
+            paths = []
+            if sys.platform.startswith("linux"):
+                try:
+                    directory = "/proc/" + pid + "/fd"
+                    for name in os.listdir(directory):
+                        try: paths.append(os.readlink(os.path.join(directory, name)))
+                        except OSError: pass
+                except OSError:
+                    pass
+            else:
+                executable = shutil.which("lsof") or "/usr/sbin/lsof"
+                try:
+                    result = subprocess.run([executable, "-a", "-p", pid, "-Fn"],
+                                            capture_output=True, text=True, timeout=3)
+                    paths = [line[1:] for line in result.stdout.splitlines() if line.startswith("n")]
+                except (OSError, subprocess.SubprocessError):
+                    pass
+            lock_dir = os.path.dirname(expected) + os.sep
+            owned = [path for path in paths if path.startswith(lock_dir)
+                     and re.fullmatch(r"[0-9a-fA-F-]{36}\.lock", os.path.basename(path))]
+            if len(owned) == 1:
+                actual_id = os.path.basename(owned[0])[:-5]
+                self.run("set-option", "-p", "-t", pane, _KEY, _hash_key("resume:" + actual_id))
+            if expected in paths:
+                return session, pane
+        return None
+
     def open(self, argv: list[str], cwd: str, key: str | None = None) -> str:
         if not argv or not all(isinstance(arg, str) for arg in argv):
             raise ValueError("argv 必须是非空字符串列表")
@@ -287,6 +331,14 @@ class Workspace:
         panes = self._panes()
         target = None
         if key is not None:
+            owner = self._native_owner(key)
+            if owner:
+                owner_session, target = owner
+                if owner_session != self.session_name:
+                    raise RuntimeError("该会话已在工作台 " + owner_session + " 运行；请切回原工作台，已阻止重复启动")
+                self.run("set-option", "-p", "-t", target, _KEY, hashed)
+        if key is not None and target is None:
+            panes = self._panes()
             matches = [
                 p for p in panes if p["key"] == hashed and p["pane"] not in (nav, self._get(_RIGHT))
             ]
