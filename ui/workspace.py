@@ -111,6 +111,17 @@ class Workspace:
     def _configure(self) -> None:
         self.run("set-option", "-g", "mouse", "on")
         self.run("set-window-option", "-g", "remain-on-exit", "on")
+        # Muted terminal defaults; native Codex still owns message rendering.
+        self.run("set-window-option", "-g", "window-style", "fg=#d8dee9,bg=#1b1e24")
+        self.run("set-window-option", "-g", "window-active-style", "fg=#d8dee9,bg=#1b1e24")
+        palette = (
+            "#252932", "#c48b91", "#9cab8b", "#c2af88",
+            "#90a6bf", "#ad9fbd", "#8faead", "#d4d7dc",
+            "#727986", "#d79b9f", "#b0bd9d", "#d5c19c",
+            "#a5bad1", "#c1b0cf", "#a3c1bf", "#e5e7eb",
+        )
+        for index, colour in enumerate(palette):
+            self.run("set-window-option", "-g", f"pane-colours[{index}]", colour)
         self.run("set-window-option", "-g", "pane-border-style", "fg=colour239")
         self.run("set-window-option", "-g", "pane-active-border-style", "fg=colour244")
         self.run("set-option", "-g", "status", "on")
