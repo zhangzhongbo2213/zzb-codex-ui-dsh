@@ -1,10 +1,18 @@
-# zzb-codex 可迁移配置
+# zzb-codex-ui-dsh
 
 保存这套独立 Codex 终端工作台的源码、偏好和安装流程。左侧文件树，中央原版对话与 status line，右侧历史会话与 Summary；包含 Vim 风格按键、鼠标操作、低饱和深色主题和文件类型配色。
 
 支持 macOS Apple 芯片 / Intel，以及 Linux ARM64 / x86-64。安装器根据机器选择锁定的 **Codex 0.166.0 完整运行包**，校验 SHA-256 后安装，包含 code-mode host、exec server 和运行资源。下载地址与校验值见 [runtime-lock.json](config/runtime-lock.json)。
 
 点击左侧文件可预览：文本在终端浮窗中滚动查看，图片使用系统预览窗口；选中文件按 `p` 也可打开。双击继续复制路径，关闭预览不会中断后台对话。详见 [文件预览](ui/README.md#文件预览)。
+
+## 界面预览
+
+以下 PNG 由真实 tmux 面板的终端输出捕获并渲染，使用隔离的演示目录与示例历史数据；中央展示原版 CLI 的离线帮助，没有运行模型请求，也不包含个人对话。字体和字距可能与实际终端略有不同。
+
+![三栏工作台：文件树、中央原版 CLI、历史和 Summary](docs/screenshots/workspace.png)
+
+![Vim 风格键盘操作帮助](docs/screenshots/keyboard-help.png)
 
 ## 新机器安装
 
@@ -25,7 +33,15 @@ sudo apt-get install tmux git
 sudo apt-get install wl-clipboard xclip
 ```
 
-复制本仓库（含 `.git`），或使用随附 Git bundle：
+从 GitHub 克隆：
+
+```sh
+git clone https://github.com/zhangzhongbo2213/zzb-codex-ui-dsh.git
+cd zzb-codex-ui-dsh
+python3 scripts/install.py --plan
+```
+
+离线迁移也可使用已有 Git bundle：
 
 ```sh
 git clone /path/to/zzb-codex-setup.bundle zzb-codex-setup
@@ -67,6 +83,22 @@ python3 scripts/install.py --proxy-config /private/path/proxy-config.json
 `config/proxy.example.json` 只有结构和占位符，没有节点凭据，不能直接联网使用。节点与控制器口令需在新机器单独配置。安装器不会安装或启动 VPN 服务，也不会把私有配置放进 Git。原机器的 iKuuu/macOS 常驻代理源代码及服务模板保存在 [legacy/macos-vpn](legacy/macos-vpn/README.md)；其专用核心与 Keychain 读取不适用于 Linux，Linux 使用自己的兼容本地代理。
 
 不用代理参数时，安装器默认生成严格模式配置；在原安装上更新时会识别已有 `~/local/share/zzb-codex-vpn/state/config.json`。配置已存在时更新不会改写它；以后调整代理请编辑独立状态目录中的 `local-settings.json`。
+
+### 端口用途
+
+| 端口 | 用途 |
+| --- | --- |
+| `127.0.0.1:17890` | 原部署中 zzb-codex 和 UI 内原版对话使用的独立 HTTP 代理 |
+| `127.0.0.1:17891` | 严格模式检查节点规则的本地控制器，需要本机口令 |
+| `127.0.0.1:12002` | 此次发布使用的已有代理，仅用于 Git 网络操作，不修改运行时代理 |
+
+通过已有代理同步仓库可执行：
+
+```sh
+all_proxy=http://127.0.0.1:12002 git -c http.proxy=http://127.0.0.1:12002 pull --ff-only
+```
+
+代理源码、配置结构和服务模板均已收录；订阅 URL、节点地址和密码、控制器口令、Codex 登录信息需在新机器单独配置。不要把自己的完整 VPN 配置提交到仓库。
 
 ## dsh-delegate
 
